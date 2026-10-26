@@ -428,6 +428,9 @@ export const shortSyntax = async (
   // (DateTimeFormatService.dateInputLocale). English-only, month-first when
   // left out.
   dateLocale: DateInputLocale = DEFAULT_DATE_INPUT_LOCALE,
+  // Day key for time spent ("t30m/1h"): pass the logical today
+  // (DateService.todayStr()) so it matches the key time tracking writes.
+  todayStr: string = getDbDateStr(),
 ): Promise<
   | {
       taskChanges: Partial<Task> & ShortSyntaxMarkers;
@@ -477,7 +480,7 @@ export const shortSyntax = async (
   }
 
   if (config.isEnableDue) {
-    const timeResult = parseTimeSpentTracked(task, tracked);
+    const timeResult = parseTimeSpentTracked(task, tracked, todayStr);
     if (timeResult) {
       taskChanges = { ...taskChanges, ...timeResult.changes };
       pushRanges('estimate', timeResult.ranges);
@@ -1356,6 +1359,7 @@ const parsePriorityTracked = (
 const parseTimeSpentTracked = (
   task: Partial<TaskCopy>,
   tracked: TrackedTitle,
+  todayStr: string,
 ): { changes: Partial<Task>; ranges: TextRange[] } | null => {
   if (!tracked.text) {
     return null;
@@ -1379,9 +1383,7 @@ const parseTimeSpentTracked = (
       ...(typeof timeSpent === 'string' && {
         timeSpentOnDay: {
           ...task.timeSpentOnDay,
-          [getDbDateStr()]: timeSpent
-            .split(/\s+/g)
-            .reduce((ms, s) => ms + stringToMs(s), 0),
+          [todayStr]: timeSpent.split(/\s+/g).reduce((ms, s) => ms + stringToMs(s), 0),
         },
       }),
       ...(typeof timeEstimate === 'string' && {
@@ -1392,12 +1394,15 @@ const parseTimeSpentTracked = (
   };
 };
 
-export const parseTimeSpentChanges = (task: Partial<TaskCopy>): Partial<Task> => {
+export const parseTimeSpentChanges = (
+  task: Partial<TaskCopy>,
+  todayStr: string = getDbDateStr(),
+): Partial<Task> => {
   if (!task.title) {
     return {};
   }
   const tracked = new TrackedTitle(task.title);
-  const result = parseTimeSpentTracked(task, tracked);
+  const result = parseTimeSpentTracked(task, tracked, todayStr);
   return result ? { ...result.changes, title: tracked.text } : {};
 };
 
